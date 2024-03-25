@@ -35,7 +35,7 @@ def standard_keyboard(user: User):
 
 
 def settings_keyboard(user: User):
-    keyboard = Keyboard() \
+    keyboard = Keyboard(one_time=True) \
         .add(Text(f'&#8987; Время: {user.schedule_next_day_after}'), color=KeyboardButtonColor.PRIMARY) \
         .add(Text('&#128256; Сменить группу'), color=KeyboardButtonColor.PRIMARY) \
         .row() \
@@ -60,15 +60,6 @@ def settings_keyboard(user: User):
 
     keyboard.add(Text('&#10067; Помощь')) \
         .add(Text('&#128281; Вернуться назад'))
-
-    return keyboard
-
-
-def group_keyboard(id: int, groups: str):
-    groups = groups.split(', ')
-    keyboard = Keyboard(one_time=True)
-    for group in range(len(groups)):
-        keyboard.add(Text(f'{groups[group]}'))
 
     return keyboard
 
@@ -125,9 +116,10 @@ def headman_keyboard(action=''):
     return keyboard
 
 
-def group_keyboard(groups: list):
+def group_keyboard(groups: list, enter_other_group: bool = True):
     '''
     Возвращает клавиатуру с возможными группами при неправильном вводе
+    :param enter_other_group: По умолчанию истина. Если ложь, кнопка 'Нет нужной группы исчезает'
     :param groups: список наиболее подходящих групп
     :return: Возвращает объект клавиатуры
     '''
@@ -135,7 +127,10 @@ def group_keyboard(groups: list):
     for group in groups:
         keyboard.add(Text(group))
 
-    keyboard.row().add(Text('Нет нужной группы'))
+    if enter_other_group:
+        keyboard.row().add(Text('Нет нужной группы'))
+
+    keyboard.row().add(Text('Отмена'), color=KeyboardButtonColor.NEGATIVE)
 
     return keyboard
 
@@ -153,23 +148,28 @@ def yes_no_keyboard():
     return keyboard
 
 
-def after_schedule_keyboard(user: User):
+def after_schedule_keyboard(user: User, day: int):
     keyboard = Keyboard(inline=True)
 
-    weekdays = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ']
+    # Если пользователь запрашивал расписание на день, то добавляем в клавиатуру варианты других дней
+    if 'after_schedule' in user.action:
+        weekdays = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ']
+        weekdays.pop(day)
 
-    for i, weekday in enumerate(weekdays):
-        keyboard.add(Text(weekday))
-        if i == 2:
-            keyboard.row()
+        for i, weekday in enumerate(weekdays):
+            keyboard.add(Text(weekday))
 
     keyboard.row()
 
     if len(user.group.split(',')) > 1:
+        group_for_delete = user.action.split('_')[-1]
         groups = user.group.split(',')
+        groups.remove(group_for_delete)
         for group in groups:
             keyboard.add(Text(group))
         keyboard.row()
+
+    keyboard.add(Text('Ввести другую группу')).row()
 
     keyboard.add(Text('Сообщить об ошибке'))
 
@@ -186,3 +186,11 @@ def custom_keyboard(buttons):
             keyboard.row()
     keyboard.add(Text('Отмена'), color=KeyboardButtonColor.NEGATIVE)
     return keyboard
+
+
+def cancel_keyboard():
+    return Keyboard().add(Text('Отмена'), color=KeyboardButtonColor.NEGATIVE)
+
+
+def empty_keyboad():
+    return Keyboard

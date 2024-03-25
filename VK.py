@@ -5,6 +5,7 @@ from Config.Config import bot, uploader
 from Server.DB import User
 from Handlers.Registration import registration
 from Handlers.StartMenu import start_menu, back_to_start
+from Handlers.Settings import settings
 from Scripts.Arrays import vk_admins
 
 from vkbottle.bot import Bot, Message
@@ -34,6 +35,9 @@ async def message_handler(message: Message):
             await user.update()
             await message.answer('Права предоставлены')
 
+    elif message.text == 'DEBUG':
+        await message.answer(f'action:  {user.action}')
+
     else:
         match user.action.split('_')[0]:
 
@@ -43,8 +47,14 @@ async def message_handler(message: Message):
             case 'start':
                 await start_menu(user=user, message=message)
 
+            case 'settings':
+                await settings(user=user, message=message)
+
             case _:
                 await back_to_start(user, message)
+
+
+    await user.update()
 
 
 

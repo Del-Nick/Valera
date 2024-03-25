@@ -48,7 +48,7 @@ async def registration(user: User, message: Message):
             else:
                 await message.answer(
                     f'Не могу найти группу. Выбери на клавиатуре, если найдёшь подходящую',
-                    keyboard=group_keyboard(difflib.get_close_matches(message.text.lower(), groups, n=4)))
+                    keyboard=group_keyboard(difflib.get_close_matches(message.text.lower(), groups, n=5)))
 
                 user.action = 'registration_error_group_adding_error'
 
@@ -68,7 +68,7 @@ async def registration(user: User, message: Message):
                                         message=f'Пользователь {user.vk_name} не может правильно ввести группу. Срочно '
                                                 f'требуется помощь. Уиуиуиуиуи 🚨🚨🚨')
 
-        case 'registration_help':
+        case 'help':
             match message.text:
 
                 case 'Да':

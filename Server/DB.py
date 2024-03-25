@@ -6,7 +6,7 @@ import asyncpg
 from vkbottle.bot import Bot, Message
 from vkbottle_types.codegen.objects import UsersUserFull
 
-from Config.Config import user, password, db_name, host, port
+from Config.Config import user, password, db_name, host, port, admins
 
 
 class User:
@@ -27,12 +27,12 @@ class User:
         self.action = None
         self.num_of_conns = None
 
-        self.full_schedule = None
-        self.notifications = None
-        self.schedule_seller = None
-        self.headman = None
-        self.studsovet = None
-        self.admin = None
+        self.full_schedule = False
+        self.notifications = False
+        self.schedule_seller = False
+        self.headman = False
+        self.studsovet = False
+        self.admin = False
         self.time_schedule_seller = None
         self.schedule_next_day_after = None
         self.chatgpt_messages = None
@@ -106,6 +106,9 @@ class User:
         if self.vk_id:
             self.vk_name = f'{self.vk.first_name} {self.vk.last_name}'
 
+        if self.vk_id in admins:
+            self.admin = True
+
         print(self.vk_name)
 
         if self.vk_id is not None or self.telegram_id is not None:
@@ -135,12 +138,12 @@ class User:
                                         self.vk_name,
                                         self.telegram_id,
                                         self.telegram_name,
-                                        False,
-                                        False,
-                                        False,
-                                        False,
-                                        False,
-                                        False,
+                                        self.full_schedule,
+                                        self.notifications,
+                                        self.schedule_seller,
+                                        self.headman,
+                                        self.studsovet,
+                                        self.admin,
                                         '18:00',
                                         '[]')
 
@@ -221,3 +224,8 @@ class User:
                     await self.conn.execute('''DELETE FROM settings WHERE vk_id = $1''', self.vk_id)
                 elif self.telegram_id is not None:
                     await self.conn.execute('''DELETE FROM settings WHERE telegram_id = $1''', self.telegram_id)
+
+            return True
+
+        else:
+            return False
