@@ -2,7 +2,7 @@ from vkbottle import Keyboard, KeyboardButtonColor, Text
 from Server.MainDatabase import update_all_users_data, get_all_users_data
 from Server.SettingsDatabase import get_all_settings, update_all_settings
 from Handlers.Keyboards import *
-from Handlers.PreStart import add_user_group
+from Handlers.Registration import add_user_group
 from Scripts.Arrays import groups
 
 

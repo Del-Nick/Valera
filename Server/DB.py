@@ -1,18 +1,21 @@
 import asyncio
+import datetime
+import time
 
 import asyncpg
-import vkbottle
+from vkbottle.bot import Bot, Message
+from vkbottle_types.codegen.objects import UsersUserFull
 
 from Config.Config import user, password, db_name, host, port
 
 
-async def connection():
-    return await asyncpg.connect(user=user, password=password,
-                                 database=db_name, host=host)
-
-
 class User:
-    def __init__(self, message, vk_id: int | None = None, telegram_id: int | None = None):
+    def __init__(self,
+                 vk: UsersUserFull = None,
+                 message: Message = None,
+                 vk_id: int | None = None,
+                 telegram_id: int | None = None):
+
         self.vk_id = vk_id
         self.vk_name = None
         self.telegram_id = telegram_id
@@ -31,15 +34,19 @@ class User:
         self.studsovet = None
         self.admin = None
         self.time_schedule_seller = None
+        self.schedule_next_day_after = None
         self.chatgpt_messages = None
 
         self.message = message
+        self.vk = vk
 
-        self.loop = asyncio.get_event_loop()
-        self.conn = self.loop.run_until_complete(connection())
+        self.conn = None
 
-        self.loop.run_until_complete(self.user_info())
-        self.loop.run_until_complete(self.settings())
+    async def connection(self):
+        self.conn = await asyncpg.connect(user=user, password=password,
+                                          database=db_name, host=host)
+        await self.user_info()
+        await self.settings()
 
     async def user_info(self):
         if self.vk_id is not None:
@@ -54,7 +61,7 @@ class User:
             return None
 
         if not values:
-            self.loop.run_until_complete(self.add_new_user())
+            await self.add_new_user()
         else:
             values = values[0]
 
@@ -89,32 +96,45 @@ class User:
             self.studsovet = values.get('studsovet')
             self.admin = values.get('admin')
             self.time_schedule_seller = values.get('time_schedule_seller')
+            self.schedule_next_day_after = values.get('schedule_next_day_after')
             self.chatgpt_messages = values.get('chatgpt_messages')
 
     async def add_new_user(self):
-        async with self.conn.transaction():
-            if self.vk_id is not None:
-                await self.conn.execute('INSERT INTO settings '
-                                        '(vk_id, vk_name, full_schedule, notifications, schedule_seller, '
-                                        'headman, studsovet, admin, schedule_next_day_after, chatgpt_messages) '
-                                        'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+        print('Регистрирую нового пользователя')
+        self.action = 'registration_first_message'
+
+        if self.vk_id:
+            self.vk_name = f'{self.vk.first_name} {self.vk.last_name}'
+
+        print(self.vk_name)
+
+        if self.vk_id is not None or self.telegram_id is not None:
+            async with self.conn.transaction():
+                await self.conn.execute('INSERT INTO users_new '
+                                        '(vk_id, vk_name, first_conn, last_conn, user_group, '
+                                        'action, num_of_conns, telegram_id, telegram_name) '
+                                        'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
                                         self.vk_id,
-                                        f'{self.message.first_name} {self.message.last_name}',
-                                        False,
-                                        False,
-                                        False,
-                                        False,
-                                        False,
-                                        False,
-                                        '18:00',
-                                        '[]')
-            elif self.telegram_id is not None:
-                await self.conn.execute('INSERT INTO settings '
-                                        '(telegram_id, vk_name, full_schedule, notifications, schedule_seller, '
-                                        'headman, studsovet, admin, schedule_next_day_after, chatgpt_messages) '
-                                        'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+                                        f'{self.vk.first_name} {self.vk.last_name}',
+                                        datetime.datetime.now(),
+                                        datetime.datetime.now(),
+                                        self.group,
+                                        self.action,
+                                        1,
                                         self.telegram_id,
-                                        f'{self.message.first_name} {self.message.last_name}',
+                                        self.telegram_name)
+
+        if self.vk_id is not None or self.telegram_id is not None:
+            async with self.conn.transaction():
+                await self.conn.execute('INSERT INTO settings '
+                                        '(vk_id, vk_name, telegram_id, telegram_name, full_schedule, notifications, '
+                                        'schedule_seller, headman, studsovet, admin, schedule_next_day_after, '
+                                        'chatgpt_messages) '
+                                        'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)',
+                                        self.vk_id,
+                                        self.vk_name,
+                                        self.telegram_id,
+                                        self.telegram_name,
                                         False,
                                         False,
                                         False,
@@ -124,9 +144,9 @@ class User:
                                         '18:00',
                                         '[]')
 
-    def update(self):
-        self.loop.run_until_complete(self.update_user_info())
-        self.loop.run_until_complete(self.update_settings())
+    async def update(self):
+        await self.update_user_info()
+        await self.update_settings()
 
     async def update_user_info(self):
         async with self.conn.transaction():
@@ -151,7 +171,7 @@ class User:
                                         self.last_conn,
                                         self.group,
                                         self.action,
-                                        self.num_of_conns)
+                                        self.num_of_conns + 1)
 
     async def update_settings(self):
         async with self.conn.transaction():
@@ -187,3 +207,17 @@ class User:
                                         self.admin,
                                         self.time_schedule_seller,
                                         self.chatgpt_messages, )
+
+    async def delete_row(self):
+        if self.admin:
+            async with self.conn.transaction():
+                if self.vk_id is not None:
+                    await self.conn.execute('''DELETE FROM users_new WHERE vk_id = $1''', self.vk_id)
+                elif self.telegram_id is not None:
+                    await self.conn.execute('''DELETE FROM users_new WHERE telegram_id = $1''', self.telegram_id)
+
+            async with self.conn.transaction():
+                if self.vk_id is not None:
+                    await self.conn.execute('''DELETE FROM settings WHERE vk_id = $1''', self.vk_id)
+                elif self.telegram_id is not None:
+                    await self.conn.execute('''DELETE FROM settings WHERE telegram_id = $1''', self.telegram_id)

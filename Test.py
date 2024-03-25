@@ -1,18 +1,14 @@
-from Server.DB import User
-from vkbottle.bot import Message
+from datetime import datetime
+import difflib
+from Scripts.Rooms import prefirst_floor_coord
+from Files.Files import schedule
 
-user = User(vk_id=299407304, message=Message)
+# while True:
+#     print(difflib.get_close_matches(input('Кабинет:  ').lower(), prefirst_floor_coord, n=10))
 
-print(user.vk_name, user.telegram_name)
+# print('325' in schedule.keys())
 
-user.full_schedule = True
+temp = 65
 
-user.update()
-
-user = User(vk_id=299407304, message=Message)
-
-print(user.full_schedule)
-
-user.full_schedule = False
-
-user.update()
+if temp:
+    print(datetime.now())
