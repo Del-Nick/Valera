@@ -1,11 +1,11 @@
 import difflib
 
-from Handlers.Keyboards import *
+from Handlers.Keyboards import UserKeyboards
 from Scripts.Arrays import groups
 from Server.DB import User
 from Config.Config import api
 
-from vkbottle import Keyboard, Text
+from vkbottle import Keyboard, Text, KeyboardButtonColor
 from vkbottle.bot import Message
 
 
@@ -35,7 +35,7 @@ async def registration(user: User, message: Message):
                     f'Отлично, {user.vk_name.split(" ")[0]}! Я запомнил, что ты из группы {user.group}. Этот параметр '
                     f'можно будет изменить в настройках. Теперь я буду искать информацию для тебя персонально')
                 await message.answer(
-                    f'Хочешь пройти обучение?', keyboard=yes_no_keyboard())
+                    f'Хочешь пройти обучение?', keyboard=UserKeyboards.yes_no_keyboard())
 
             elif message.text == 'Я не студент физфака':
                 await message.answer(f"Хорошо, {user.vk_name.split(' ')[0]}. Я запомнил, что ты не с физического "
@@ -48,7 +48,7 @@ async def registration(user: User, message: Message):
             else:
                 await message.answer(
                     f'Не могу найти группу. Выбери на клавиатуре, если найдёшь подходящую',
-                    keyboard=group_keyboard(difflib.get_close_matches(message.text.lower(), groups, n=5)))
+                    keyboard=UserKeyboards.group_keyboard(difflib.get_close_matches(message.text.lower(), groups, n=5)))
 
                 user.action = 'registration_error_group_adding_error'
 
@@ -61,7 +61,7 @@ async def registration(user: User, message: Message):
                     f'Отлично, {user.vk_name.split(" ")[0]}! Я запомнил, что ты из группы {user.group}. Этот параметр '
                     f'можно будет изменить в настройках. Теперь я буду искать информацию для тебя персонально')
                 await message.answer(
-                    f'Хочешь пройти обучение?', keyboard=yes_no_keyboard())
+                    f'Хочешь пройти обучение?', keyboard=UserKeyboards.yes_no_keyboard())
             else:
                 await message.answer('Я немного запутался. Уже зову на помощь админа')
                 await api.messages.send(peer_id=2000000001, random_id=0,
@@ -73,11 +73,11 @@ async def registration(user: User, message: Message):
 
                 case 'Да':
                     await message.answer(
-                        f'Пока обучение не доступно', keyboard=standard_keyboard(user))
+                        f'Пока обучение не доступно', keyboard=UserKeyboards.standard_keyboard(user))
 
                 case _:
                     await message.answer(
-                        f'Добро пожаловать в главное меню', keyboard=standard_keyboard(user))
+                        f'Добро пожаловать в главное меню', keyboard=UserKeyboards.standard_keyboard(user))
 
             user.action = 'start_menu'
 

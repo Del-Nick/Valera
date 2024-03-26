@@ -903,6 +903,11 @@ schemes = [alpha_0_floor, alpha_1_floor, alpha_2_floor, alpha_3_floor, alpha_4_f
 
 
 def check_rooms(text):
+    """
+    Функция должна определять, является ли сообщение кабинетом. работает плохо, надо переписывать
+    :param text: сообщение пользователя
+    :return: сообщение, этаж и юг/север
+    """
     try:
         text = text.lower().replace(' ', '')
 
@@ -957,6 +962,13 @@ def check_rooms(text):
 
 
 def rooms(room, floor):
+    """
+    Сохраняет картинку с закрашенным кабинетом, который был запрошен
+    :param room: Запрошенный кабинет
+    :param floor: Этаж с кабинетом
+    :return: Путь к сохранённой картинке
+    """
+
     alpha = schemes[floor]
     width, height = alpha.size
 
