@@ -1,9 +1,12 @@
+import os
+
 from PIL import Image, ImageDraw
 import numpy as np
 from numba import njit
 import uuid
 import timeit
 
+from Files.Files import alpha_0_floor, alpha_1_floor, alpha_2_floor, alpha_3_floor, alpha_4_floor, alpha_5_floor
 
 prefirst_floor_coord = {'ц-21': [8315, 3485, 8465, 3744],
                         'ц-21а': [8467, 3485, 8617, 3744],
@@ -896,7 +899,15 @@ floors_coord = [prefirst_floor_coord, first_floor_coord, second_floor_coord, thi
                 fifth_floor_coord]
 
 
+schemes = [alpha_0_floor, alpha_1_floor, alpha_2_floor, alpha_3_floor, alpha_4_floor, alpha_5_floor]
+
+
 def check_rooms(text):
+    """
+    Функция должна определять, является ли сообщение кабинетом. работает плохо, надо переписывать
+    :param text: сообщение пользователя
+    :return: сообщение, этаж и юг/север
+    """
     try:
         text = text.lower().replace(' ', '')
 
@@ -950,10 +961,15 @@ def check_rooms(text):
         return False
 
 
-alpha = Image.open(r'Scripts/Rooms/2 floor alpha.png').convert('RGBA')
-
-
 def rooms(room, floor):
+    """
+    Сохраняет картинку с закрашенным кабинетом, который был запрошен
+    :param room: Запрошенный кабинет
+    :param floor: Этаж с кабинетом
+    :return: Путь к сохранённой картинке
+    """
+
+    alpha = schemes[floor]
     width, height = alpha.size
 
     img = Image.new('RGB', (width, height), (255, 255, 255))
@@ -971,7 +987,7 @@ def rooms(room, floor):
         img.paste(alpha, (0, 0), alpha)
 
         hash_name = uuid.uuid4()
-        path = f"Rooms/Temp/{hash_name}.jpg"
+        path = f"Files/Rooms/Temp/{hash_name}.jpg"
         img.save(path, optimize=True, quality=0)
 
         return path

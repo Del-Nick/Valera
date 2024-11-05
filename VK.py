@@ -1,12 +1,11 @@
 import asyncio
 import time
 
-from Config.Config import bot, uploader
+from Config.Config import bot, uploader, admins
 from Server.DB import User
 from Handlers.Registration import registration
 from Handlers.StartMenu import start_menu, back_to_start
 from Handlers.Settings import settings
-from Scripts.Arrays import vk_admins
 
 from vkbottle.bot import Bot, Message
 
@@ -29,14 +28,15 @@ async def message_handler(message: Message):
     if 'Валер' in message.text:
         await back_to_start(user, message)
 
-    elif message.text == 'Я админ':
-        if user.vk_id in vk_admins:
-            user.admin = True
-            await user.update()
-            await message.answer('Права предоставлены')
-
     elif message.text == 'DEBUG':
         await message.answer(f'action:  {user.action}')
+
+    elif message.text == 'Валера стереть':
+        if await user.delete_row():
+            user.action = 'start_menu'
+            await message.answer('Запись о тебе удалена')
+        else:
+            await message.answer('У тебя недостаточно прав для доступа')
 
     else:
         match user.action.split('_')[0]:
