@@ -27,9 +27,6 @@ async def message_handler(message: Message):
             user.settings.admin = True
             await message.answer('Права предоставлены')
 
-    elif message.text == 'Статистика выборов' and user.settings.studsovet:
-        await vote_statistics(user=user, message=message)
-
     elif message.text == 'DEBUG':
         await message.answer(f'action:  {user.action}')
 
