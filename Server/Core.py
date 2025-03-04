@@ -1,17 +1,15 @@
-import asyncio
-import datetime
-from random import randint
+import traceback
+from typing import Sequence, List
 
+from sqlalchemy import select, delete, text, insert
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.orm import selectinload
 from vkbottle.bot import Message
 
-from sqlalchemy import select, delete, text
-from sqlalchemy.orm import selectinload
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-
 from Config.Config import global_settings, bot
-from Server.Models import Base, User, Settings, Books, Homeworks, Workshops, Elections
 from Scripts.Others import get_sex_of_person_by_name
-
+from Server.Models import Base, User, Settings, Books, Homeworks, Workshops, Elections, Votes, Exam, QuizUser, Quiz, \
+    CustomLesson, WeekType, GroupName, Lesson
 
 engine = create_async_engine(url=global_settings.DATABASE_URL_asyncpg,
                              echo=False)
@@ -30,7 +28,7 @@ class DB:
         user = await DB.select_user(VkID=message.from_id)
 
         if not user:
-            vk_info = (await bot.api.users.get(message.from_id))[0]
+            vk_info = await message.get_user()
             user = User(VkID=vk_info.id, VkFirstName=vk_info.first_name, VkLastName=vk_info.last_name,
                         sex=get_sex_of_person_by_name(vk_info.first_name))
 
@@ -148,6 +146,12 @@ class DB:
 
             await session.commit()
             await engine.dispose()
+
+    @staticmethod
+    async def get_all_users():
+        async with session_factory() as session:
+            users = await session.execute(select(User))
+            return users.scalars().all()
 
 
 class BooksDB:
@@ -285,53 +289,80 @@ class WorkshopsDB:
 
 class ElectionsDB:
     @staticmethod
-    async def create_table_():
+    async def create_table():
         async with engine.begin() as conn:
-            await conn.run_sync(ElectionsDB.__table__.create)
+            await conn.run_sync(Elections.__table__.create)
 
     @staticmethod
-    async def insert_elections(elections: Elections):
+    async def insert(election: Elections):
         async with session_factory() as session:
-            session.add(elections)
+            session.add(election)
             await session.commit()
             await engine.dispose()
 
     @staticmethod
-    async def select_elections(vk_id: int):
+    async def select(vk_id: int) -> Elections:
         async with session_factory() as session:
-            query = select(Elections).where(Elections.id == vk_id)
+            query = select(Elections).where(Elections.vk_id == vk_id)
             record_exist = bool((await session.execute(query)).first())
 
         if record_exist:
             async with session_factory() as session:
-                query = select(Elections).where(Elections.id == vk_id)
+                query = select(Elections).where(Elections.vk_id == vk_id)
                 result = await session.execute(query)
-                workshops = result.scalars().one()
+                election = result.scalars().one()
 
-        else:
-            elections = Elections(vk_id=vk_id)
-            await ElectionsDB.insert_elections(elections)
+        # else:
+        #     election = Elections(vk_id=vk_id)
+        #     await ElectionsDB.insert(election)
+        #
+        #     async with session_factory() as session:
+        #         query = select(Elections).where(Elections.vk_id == vk_id)
+        #         result = await session.execute(query)
+        #         election = result.scalars().one()
 
-            async with session_factory() as session:
-                query = select(Elections).where(Elections.id == vk_id)
-                result = await session.execute(query)
-                workshops = result.scalars().one()
-
-        return workshops
+        await engine.dispose()
+        return election
 
     @staticmethod
-    async def update_elections(elections: Elections):
+    async def update(election: Elections):
         async with session_factory() as session:
-            elections_old = await session.get(Elections, elections.id)
+            query = select(Elections).where(Elections.id == election.id)
+            result = await session.execute(query)
+            election_old = result.scalars().one()
 
-            for key, value in elections.__dict__.items():
-                if key != '_sa_instance_state':
+            for key, value in election.__dict__.items():
+                if key not in ('_sa_instance_state'):
                     try:
-                        setattr(elections_old, key, value)
+                        setattr(election_old, key, value)
                     except AttributeError:
                         pass
 
             await session.commit()
+            await engine.dispose()
+
+    @staticmethod
+    async def get_all_choices() -> List[Elections]:
+        async with session_factory() as session:
+            result = await session.execute(select(Elections).order_by(Elections.id))
+            elections = result.scalars().all()
+            await engine.dispose()
+
+        return elections
+
+    @staticmethod
+    async def delete_user(election: Elections):
+        async with session_factory() as session:
+            await session.execute(delete(Elections).where(Elections.id == election.id))
+            await session.commit()
+            await engine.dispose()
+
+    @staticmethod
+    async def insert_vote(vote: Votes):
+        async with session_factory() as session:
+            session.add(vote)
+            await session.commit()
+            await engine.dispose()
 
 
 async def get_table_size(table_name: str):
@@ -343,5 +374,288 @@ async def get_table_size(table_name: str):
         print(f"Размер таблицы: {table_size}")
 
 
-if __name__ == '__main__':
-    asyncio.run(get_table_size('users'))
+class SessionDB:
+    @staticmethod
+    async def insert(exam: Exam):
+        async with session_factory() as session:
+            session.add(exam)
+            await session.commit()
+            await engine.dispose()
+
+    @staticmethod
+    async def select(group: str):
+        async with session_factory() as session:
+            query = select(Exam).filter(Exam.group == group).order_by(Exam.exam_datetime)
+            result = await session.execute(query)
+            exams = result.scalars().all()
+            await engine.dispose()
+            return exams
+
+    @staticmethod
+    async def update(exam: Exam):
+        async with session_factory() as session:
+            query = select(Exam).filter(Exam.group == exam.group, Exam.name == exam.name)
+            result = await session.execute(query)
+            exam_old = result.scalars().one()
+
+            exam_old.teacher = exam.teacher
+            exam_old.exam_datetime = exam.exam_datetime
+            exam_old.room = exam.room
+
+            await session.commit()
+            await engine.dispose()
+
+
+class QuizDB:
+    @staticmethod
+    async def create_table():
+        async with engine.begin() as conn:
+            await conn.run_sync(Quiz.__table__.create)
+
+    @staticmethod
+    async def insert(question: Quiz):
+        async with session_factory() as session:
+            session.add(question)
+            await session.commit()
+            await engine.dispose()
+
+    @staticmethod
+    async def select(num: int) -> Quiz:
+        async with session_factory() as session:
+            query = select(Quiz).where(Quiz.id == num)
+            result = await session.execute(query)
+            question = result.scalars().one()
+            await engine.dispose()
+            return question
+
+    @staticmethod
+    async def update(question: Quiz):
+        async with session_factory() as session:
+            query = select(Quiz).where(Quiz.id == question.id)
+            result = await session.execute(query)
+            question_old = result.scalars().one()
+
+            question_old.question = question.question
+            question_old.variants = question.variants
+            question_old.answer = question.answer
+            question_old.desc = question.desc
+
+            await session.commit()
+            await engine.dispose()
+
+
+class QuizUserDB:
+    @staticmethod
+    async def create_table():
+        async with engine.begin() as conn:
+            await conn.run_sync(QuizUser.__table__.create)
+
+    @staticmethod
+    async def insert(quiz_user: QuizUser):
+        async with session_factory() as session:
+            session.add(quiz_user)
+            await session.commit()
+            await engine.dispose()
+
+    @staticmethod
+    async def select(user_id: int) -> QuizUser:
+        async with session_factory() as session:
+            query = select(QuizUser).where(QuizUser.user_id == user_id)
+            result = await session.execute(query)
+            quiz_user = result.scalars().one_or_none()
+            await engine.dispose()
+            return quiz_user
+
+    @staticmethod
+    async def update(quiz_user: QuizUser):
+        async with session_factory() as session:
+            query = select(QuizUser).where(QuizUser.id == quiz_user.id)
+            result = await session.execute(query)
+            quiz_user_old = result.scalars().one()
+
+            quiz_user_old.count_true_answers = quiz_user.count_true_answers
+
+            if quiz_user.end_datetime:
+                quiz_user_old.end_datetime = quiz_user.end_datetime
+
+            await session.commit()
+            await engine.dispose()
+
+
+class GroupNameDB:
+    @staticmethod
+    async def create_table():
+        async with engine.begin() as conn:
+            await conn.run_sync(GroupName.__table__.create)
+
+    @staticmethod
+    async def insert(group: GroupName = None, groups: list[GroupName] = None):
+        async with session_factory() as session:
+            session.add_all(groups) if groups else session.add(group)
+            await session.commit()
+
+    @staticmethod
+    async def select(group_name: str) -> GroupName:
+        async with session_factory() as session:
+            query = select(GroupName).where(GroupName.group_name == group_name)
+            result = await session.execute(query)
+            group = result.scalars().one_or_none()
+
+            return group
+
+
+class LessonScheduleDB:
+    @staticmethod
+    async def create_table():
+        async with engine.begin() as conn:
+            await conn.run_sync(Lesson.__table__.create)
+
+    @staticmethod
+    async def update_or_insert_list_lessons(lessons: list[tuple[Lesson, str]] = None):
+        async with (session_factory() as session):
+            groups = (await session.execute(select(GroupName))).scalars().all()
+
+            db_groups_names = set([g.group_name for g in groups])
+            schedule_groups_names = set(x[1] for x in lessons)
+
+            if len(schedule_groups_names - db_groups_names) > 0:
+                expected_groups = list(schedule_groups_names - db_groups_names)
+                await GroupNameDB.insert(groups=[GroupName(group_name=g) for g in expected_groups])
+                groups = (await session.execute(select(GroupName))).scalars().all()
+
+            groups = {g.group_name: g.id for g in groups}
+
+            try:
+                lessons_data = [lesson.get_dict_values(group_id=groups[group_name]) for lesson, group_name in lessons]
+
+                query = insert(Lesson).values(lessons_data)
+                query = query.on_conflict_do_update(constraint='uq_schedule_unique_lesson',
+                                                    set_={
+                                                        "lesson": query.excluded.lesson,
+                                                        "teacher": query.excluded.teacher,
+                                                        "room": query.excluded.room
+                                                    })
+                await session.execute(query)
+                await session.commit()
+
+            except KeyError:
+                traceback.print_exc()
+                await session.close()
+
+    @staticmethod
+    async def update_or_insert_one_lesson(lesson: Lesson, group_name: str):
+        async with (session_factory() as session):
+            group = (await session.execute(
+                select(GroupName).where(GroupName.group_name == group_name))).scalars().one_or_none()
+
+            if group:
+                lesson_data = lesson.get_dict_values(group_id=group.id)
+                query = insert(Lesson).values(lesson_data)
+                query = query.on_conflict_do_update(constraint='uq_schedule_unique_lesson',
+                                                    set_={
+                                                        "lesson": query.excluded.lesson,
+                                                        "teacher": query.excluded.teacher,
+                                                        "room": query.excluded.room
+                                                    })
+                await session.execute(query)
+                await session.commit()
+
+            else:
+                await session.close()
+
+    @staticmethod
+    async def select(group_name: str, weekday: int, week_type: WeekType = None) -> list[Lesson] | None:
+        async with (session_factory() as session):
+            group = await GroupNameDB.select(group_name=group_name)
+            if group:
+                query = select(Lesson).where(Lesson.group_id == group.id, Lesson.weekday == weekday
+                                             ).order_by(Lesson.lesson_number, Lesson.week_type)
+                if week_type:
+                    query = select(Lesson).where(Lesson.group_id == group.id, Lesson.weekday == weekday,
+                                                 Lesson.week_type == week_type,
+                                                 ).order_by(Lesson.lesson_number, Lesson.week_type)
+                else:
+                    query = select(Lesson).where(Lesson.group_id == group.id, Lesson.weekday == weekday
+                                                 ).order_by(Lesson.lesson_number, Lesson.week_type)
+
+                result = await session.execute(query)
+                lessons = result.scalars().all()
+                return lessons[0] if type(lessons) is tuple else lessons
+
+    @staticmethod
+    async def select_one_lesson(group_name: str, weekday: int, lesson_number: int, week_type: WeekType = None) -> Lesson:
+        async with session_factory() as session:
+            group = await GroupNameDB.select(group_name=group_name)
+
+            query = select(Lesson).where(Lesson.group_id == group.id,
+                                         Lesson.weekday == weekday,
+                                         Lesson.lesson_number == lesson_number,
+                                         Lesson.week_type == week_type)
+
+            result = await session.execute(query)
+            lesson = result.scalars().one_or_none()
+
+            return lesson
+
+
+class CustomLessonScheduleDB:
+    @staticmethod
+    async def create_table():
+        async with engine.begin() as conn:
+            await conn.run_sync(CustomLesson.__table__.create)
+
+    @staticmethod
+    async def update_or_insert_one_lesson(lesson: CustomLesson, group_name: str):
+        async with (session_factory() as session):
+            group = (await session.execute(
+                select(GroupName).where(GroupName.group_name == group_name))).scalars().one_or_none()
+
+            if group:
+                lesson_data = lesson.get_dict_values(group_id=group.id)
+                query = insert(CustomLesson).values(lesson_data)
+                query = query.on_conflict_do_update(constraint='uq_custom_schedule_unique_lesson',
+                                                    set_={
+                                                        "lesson": query.excluded.lesson,
+                                                        "teacher": query.excluded.teacher,
+                                                        "room": query.excluded.room
+                                                    })
+                await session.execute(query)
+                await session.commit()
+
+            else:
+                await session.close()
+
+    @staticmethod
+    async def select(group_name: str, weekday: int, week_type: WeekType) -> list[CustomLesson] | None:
+        async with session_factory() as session:
+            group = await GroupNameDB.select(group_name=group_name)
+            if group:
+                query = select(CustomLesson).where(CustomLesson.group_id == group.id,
+                                                   CustomLesson.weekday == weekday)
+                if week_type:
+                    query.where(CustomLesson.week_type == week_type)
+
+                query.order_by(CustomLesson.week_type, CustomLesson.lesson_number)
+
+                result = await session.execute(query)
+                lessons = result.scalars().all()
+
+                return lessons[0] if type(lessons) is tuple else lessons
+
+            else:
+                await session.close()
+
+    @staticmethod
+    async def select_one_lesson(group_name: str, weekday: int, lesson_number: int,
+                                week_type: WeekType = None) -> List[CustomLesson]:
+        async with session_factory() as session:
+            group = await GroupNameDB.select(group_name=group_name)
+            query = select(CustomLesson).where(CustomLesson.group_id == group.id,
+                                               CustomLesson.weekday == weekday,
+                                               CustomLesson.lesson_number == lesson_number,
+                                               CustomLesson.week_type == week_type)
+
+            result = await session.execute(query)
+            lessons = result.scalars().one_or_none()
+
+            return lessons
