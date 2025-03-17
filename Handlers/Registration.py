@@ -146,6 +146,6 @@ async def registration(user: User, message: Message) -> User:
         user.action = 'start_menu'
 
     elif user.action.startswith('registration_not_student'):
-        if message.text == 'Я студент физфака' or message.text == 'Я студентка физфака':
+        if message.text.lower() == 'я студент физфака' or message.text.lower() == 'я студентка физфака':
             await message.answer('Напиши мне свою учебную группу')
             user.action = 'registration_add_group'
