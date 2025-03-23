@@ -1,17 +1,21 @@
+import asyncio
 from dataclasses import dataclass
 
 from dotenv import find_dotenv, load_dotenv, dotenv_values
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.testing.plugin.plugin_base import config
 from vkbottle import API
 from vkbottle.bot import Bot
 from vkbottle.tools import PhotoMessageUploader, DocMessagesUploader
 
-load_dotenv(find_dotenv(".env"))
+# load_dotenv(find_dotenv(".env"))
+load_dotenv('Config/.env')
 
 
 @dataclass
 class GlobalSettings:
     config = dotenv_values()
+    print(f'{config = }')
 
     host: str = config['host']
     user: str = config['user']
@@ -20,15 +24,15 @@ class GlobalSettings:
     port: int = config['port']
 
     vk_ss_ff_token: str = config['vk_ss_ff_token']
-    vk_main_token: str = config['vk_main_token']
+    # vk_main_token: str = config['vk_main_token']
 
-    main_token: str = config['tg_main_token']
+    # main_token: str = config['tg_main_token']
     owner_id: str = config['owner_id']
 
-    ssh_host: str = config['ssh_host']
-    ssh_username: str = config['ssh_username']
-    ssh_password: str = config['ssh_password']
-    ssh_port: int = config['ssh_port']
+    # ssh_host: str = config['ssh_host']
+    # ssh_username: str = config['ssh_username']
+    # ssh_password: str = config['ssh_password']
+    # ssh_port: int = config['ssh_port']
 
     admins = tuple(map(int, config['tg_admins'].split()))
 
